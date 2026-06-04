@@ -1,12 +1,3 @@
-Haklısın, fonksiyonları iç içe gömmek hem okunabilirliği öldürür hem de o fonksiyonları dışarıdan (örneğin çöp kutusu butonundan) çağrılamaz hale getirir. Kapsam (scope) hatası yüzünden butonlar çalışmazdı.
-
-Ayrıca `history` dizisindeki her maça benzersiz bir `id` eklemek, silme işleminin tam olarak hangi maçı hedef aldığını bulmak için şart.
-
-Söylediğin mimari değişiklikleri uygulayarak, fonksiyonları dışarı çıkardım, maçlara `id` atamasını ekledim ve çöp kutusu butonunu arayüze entegre ettim.
-
-İşte kodun güncellenmiş ve temizlenmiş tam hali:
-
-```html
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -266,7 +257,3 @@ Söylediğin mimari değişiklikleri uygulayarak, fonksiyonları dışarı çık
     </script>
 </body>
 </html>
-
-```
-
-*Not: Tavsiyene uyarak eski çalışan sürümü bir kenara yedeklemeyi unutma; yazılım dünyasının o en eski ve kadim sporunda bugün mağlubiyet yok.*

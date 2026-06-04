@@ -85,7 +85,6 @@
                 document.getElementById('syncStatus').innerText = "Canlı";
                 document.getElementById('syncStatus').className = "bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-full font-semibold border border-emerald-500/30";
                 
-                // Açılışta veya senkronizasyonda ELO'ları sıfırdan hesapla ve arayüzü bas
                 recalculateElo();
                 renderAll();
             } catch (err) {
@@ -112,7 +111,7 @@
             const nick = document.getElementById('playerNick').value.trim();
             if (!name) return alert('Oyuncu adı boş bırakılamaz!');
             
-            players.push({ id: Date.now().toString(), name: name, nick: nick || '-', elo: 1000 });
+            players.push({ id: "player_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5), name: name, nick: nick || '-', elo: 1000 });
             
             const success = await pushData('players', players);
             if (success) {
@@ -128,7 +127,6 @@
             const player = players.find(p => p.id === playerId);
             if (!player) return;
 
-            // Oyuncunun maç geçmişi var mı kontrol et
             const usedInMatches = history.some(m => m.p1Id === playerId || m.p2Id === playerId);
             if (usedInMatches) {
                 alert("Bu oyuncunun maç geçmişi var. Önce oyuncunun maçlarını silmelisiniz.");
@@ -154,7 +152,7 @@
             const p2 = players.find(p => p.id === p2Id);
 
             history.unshift({
-                id: "match_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), // Asla çakışmayan ID
+                id: "match_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5),
                 p1Id: p1Id,
                 p2Id: p2Id,
                 p1Name: p1.name, 
@@ -163,6 +161,7 @@
                 s2: s2,
                 date: new Date().toLocaleDateString('tr-TR', {hour: '2-digit', minute:'2-digit'})
             });
+
             recalculateElo();
 
             const successPlayers = await pushData('players', players);
@@ -222,7 +221,6 @@
         }
 
         function renderAll() {
-            // Seçili oyuncuları hafızada tut (Render sırasında sıfırlanma bug'ını önlemek için)
             const savedP1 = document.getElementById('matchP1').value;
             const savedP2 = document.getElementById('matchP2').value;
 
@@ -253,7 +251,6 @@
             document.getElementById('matchP2').innerHTML = '<option value="">Seç</option>' + options;
             document.getElementById('playerCount').innerText = `${players.length} Oyuncu`;
 
-            // Seçimleri geri yükle
             if (savedP1) document.getElementById('matchP1').value = savedP1;
             if (savedP2) document.getElementById('matchP2').value = savedP2;
 
@@ -262,18 +259,15 @@
                     <div class="flex-1 text-sm">${m.p1Name} <span class="text-xs text-slate-500">(${m.ch1 || 0})</span></div>
                     <div class="bg-slate-900 px-3 py-1 rounded-lg font-mono text-xs font-bold mx-2 text-slate-300">${m.s1} - ${m.s2}</div>
                     <div class="flex-1 text-right text-sm">${m.p2Name} <span class="text-xs text-slate-500">(${m.ch2 || 0})</span></div>
-                    <button onclick="deleteMatch(${m.id})" class="ml-3 text-red-400/60 hover:text-red-400 active:scale-90 transition-transform text-xs">
+                    <button onclick="deleteMatch('${m.id}')" class="ml-3 text-red-400/60 hover:text-red-400 active:scale-90 transition-transform text-xs">
                         🗑
                     </button>
                 </div>
             `).join('');
         }
 
-        // İlk veri yüklemesi
         loadData();
 
-        // 4. Adım: Supabase Realtime Dinleyicisi Aktif Ediliyor
-        // Bu sayede herhangi bir cihazda veri değiştiğinde tüm açık ekranlar F5'siz yenilenir.
         sb.channel('dart-live')
             .on(
                 'postgres_changes',

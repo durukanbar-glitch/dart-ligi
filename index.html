@@ -154,7 +154,7 @@
             const p2 = players.find(p => p.id === p2Id);
 
             history.unshift({
-                id: Date.now(),
+                id: "match_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9), // Asla çakışmayan ID
                 p1Id: p1Id,
                 p2Id: p2Id,
                 p1Name: p1.name, 
@@ -163,7 +163,6 @@
                 s2: s2,
                 date: new Date().toLocaleDateString('tr-TR', {hour: '2-digit', minute:'2-digit'})
             });
-
             recalculateElo();
 
             const successPlayers = await pushData('players', players);

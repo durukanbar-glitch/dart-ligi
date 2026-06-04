@@ -1,3 +1,12 @@
+Haklısın, fonksiyonları iç içe gömmek hem okunabilirliği öldürür hem de o fonksiyonları dışarıdan (örneğin çöp kutusu butonundan) çağrılamaz hale getirir. Kapsam (scope) hatası yüzünden butonlar çalışmazdı.
+
+Ayrıca `history` dizisindeki her maça benzersiz bir `id` eklemek, silme işleminin tam olarak hangi maçı hedef aldığını bulmak için şart.
+
+Söylediğin mimari değişiklikleri uygulayarak, fonksiyonları dışarı çıkardım, maçlara `id` atamasını ekledim ve çöp kutusu butonunu arayüze entegre ettim.
+
+İşte kodun güncellenmiş ve temizlenmiş tam hali:
+
+```html
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -61,7 +70,6 @@
     </div>
 
     <script>
-        // BURAYI KENDİ SUPABASE BİLGİLERİNLE DEĞİŞTİR (TIRNAK İŞARETLERİNİ SİLME)
         const SUPABASE_URL = "https://unstztglzzfpxtoruwon.supabase.co";
         const SUPABASE_KEY = "sb_publishable_VIPMJRRlHqlXs3vdY2rGMw_KfU3kUOp";
         
@@ -143,14 +151,20 @@
             const changeP1 = Math.round(kFactor * (actualP1 - expectedP1));
             const changeP2 = Math.round(kFactor * (actualP2 - expectedP2));
 
-            p1.elo += changeP1;
-            p2.elo += changeP2;
-
+            // ELO değişimi burada sadece history nesnesine yazılıyor, 
+            // oyuncu nesnesi recalculateElo() içinde sıfırdan hesaplanacağı için burada p1.elo += changeP1 yapmıyoruz.
             history.unshift({
-                date: new Date().toLocaleDateString('tr-TR', {hour: '2-digit', minute:'2-digit'}),
-                p1Name: p1.name, p2Name: p2.name, s1: s1, s2: s2,
-                ch1: changeP1 >= 0 ? `+${changeP1}` : changeP1, ch2: changeP2 >= 0 ? `+${changeP2}` : changeP2
+                id: Date.now(),
+                p1Id: p1Id,
+                p2Id: p2Id,
+                p1Name: p1.name, 
+                p2Name: p2.name, 
+                s1: s1, 
+                s2: s2,
+                date: new Date().toLocaleDateString('tr-TR', {hour: '2-digit', minute:'2-digit'})
             });
+
+            recalculateElo();
 
             const successPlayers = await pushData('players', players);
             const successHistory = await pushData('history', history);
@@ -164,10 +178,59 @@
             }
         }
 
+        async function deleteMatch(matchId) {
+            if (!confirm('Bu maçı silmek ve ELO puanlarını yeniden hesaplamak istediğinize emin misiniz?')) return;
+            
+            history = history.filter(m => m.id !== matchId);
+            recalculateElo();
+
+            const successPlayers = await pushData('players', players);
+            const successHistory = await pushData('history', history);
+
+            if (successPlayers && successHistory) {
+                renderAll();
+            } else {
+                loadData();
+            }
+        }
+
+        function recalculateElo() {
+            // Tüm oyuncuların ELO'sunu başlangıç değerine çek
+            players.forEach(p => p.elo = 1000);
+
+            // Geçmişi kronolojik sıraya sokmak için ters çevirip simüle ediyoruz
+            const chronologicalHistory = [...history].reverse();
+
+            chronologicalHistory.forEach(m => {
+                const p1 = players.find(p => p.id === m.p1Id);
+                const p2 = players.find(p => p.id === m.p2Id);
+
+                if (p1 && p2) {
+                    const kFactor = 32;
+                    const expectedP1 = 1 / (1 + Math.pow(10, (p2.elo - p1.elo) / 400));
+                    const expectedP2 = 1 / (1 + Math.pow(10, (p1.elo - p2.elo) / 400));
+
+                    let actualP1 = m.s1 > m.s2 ? 1 : (m.s1 < m.s2 ? 0 : 0.5);
+                    let actualP2 = 1 - actualP1;
+
+                    const changeP1 = Math.round(kFactor * (actualP1 - expectedP1));
+                    const changeP2 = Math.round(kFactor * (actualP2 - expectedP2));
+
+                    p1.elo += changeP1;
+                    p2.elo += changeP2;
+
+                    // Güncel değişim miktarlarını geçmiş nesnesi üzerinde de saklıyoruz (render için)
+                    m.ch1 = changeP1 >= 0 ? `+${changeP1}` : changeP1;
+                    m.ch2 = changeP2 >= 0 ? `+${changeP2}` : changeP2;
+                }
+            });
+        }
+
         function renderAll() {
-            players.sort((a, b) => b.elo - a.elo);
+            // Sıralama kopyası üzerinden sırala ki orijinal dizi dizilimi bozulmasın
+            const sortedPlayers = [...players].sort((a, b) => b.elo - a.elo);
             const leaderboard = document.getElementById('leaderboard');
-            leaderboard.innerHTML = players.map((p, i) => `
+            leaderboard.innerHTML = sortedPlayers.map((p, i) => `
                 <div class="flex justify-between items-center p-4">
                     <div class="flex items-center gap-3">
                         <span class="text-xs font-bold w-5 text-slate-500">${i + 1}.</span>
@@ -188,16 +251,22 @@
             document.getElementById('playerCount').innerText = `${players.length} Oyuncu`;
 
             document.getElementById('matchHistory').innerHTML = history.map(m => `
-                <div class="p-3 flex justify-between items-center">
-                    <div class="flex-1">${m.p1Name} <span class="text-slate-500">(${m.ch1})</span></div>
+                <div class="p-3 flex justify-between items-center hover:bg-slate-800/40 transition-colors">
+                    <div class="flex-1">${m.p1Name} <span class="text-slate-500">(${m.ch1 || 0})</span></div>
                     <div class="bg-slate-900 px-3 py-1 rounded-lg font-mono font-bold mx-2">${m.s1} - ${m.s2}</div>
-                    <div class="flex-1 text-right">${m.p2Name} <span class="text-slate-500">(${m.ch2})</span></div>
+                    <div class="flex-1 text-right">${m.p2Name} <span class="text-slate-500">(${m.ch2 || 0})</span></div>
+                    <button onclick="deleteMatch(${m.id})" class="ml-3 text-red-400 hover:text-red-500 active:scale-90 transition-transform">
+                        🗑
+                    </button>
                 </div>
             `).join('');
         }
 
-        // İlk açılışta verileri çek
         loadData();
     </script>
 </body>
 </html>
+
+```
+
+*Not: Tavsiyene uyarak eski çalışan sürümü bir kenara yedeklemeyi unutma; yazılım dünyasının o en eski ve kadim sporunda bugün mağlubiyet yok.*

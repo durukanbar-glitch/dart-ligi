@@ -65,7 +65,7 @@
         const SUPABASE_URL = "https://unstztglzzfpxtoruwon.supabase.co/rest/v1/";
         const SUPABASE_KEY = "sb_publishable_VIPMJRRlHqlXs3vdY2rGMw_KfU3kUOp";
         
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let players = [];
         let history = [];
@@ -73,7 +73,7 @@
         async function loadData() {
             try {
                 document.getElementById('syncStatus').innerText = "Yükleniyor...";
-                let { data: dart_data, error } = await supabase.from('dart_data').select('*');
+                let { data: dart_data, error } = await sb.from('dart_data').select('*');
                 
                 if (error) throw error;
 
@@ -95,7 +95,7 @@
 
         async function pushData(key, value) {
             document.getElementById('syncStatus').innerText = "Eşitleniyor...";
-            const { error } = await supabase.from('dart_data').upsert({ key: key, value: value }, { onConflict: 'key' });
+            const { error } = await sb.from('dart_data').upsert({ key: key, value: value }, { onConflict: 'key' });
             if (error) {
                 alert("Veritabanına yazılamadı! Detay: " + error.message);
                 document.getElementById('syncStatus').innerText = "Hata";
@@ -118,7 +118,7 @@
                 document.getElementById('playerNick').value = '';
                 renderAll();
             } else {
-                players.pop(); // Başarısız olduysa diziden geri çıkar
+                players.pop();
             }
         }
 
@@ -160,7 +160,7 @@
                 document.getElementById('scoreP2').value = '';
                 renderAll();
             } else {
-                loadData(); // Hata varsa veritabanındaki eski haline geri dön
+                loadData();
             }
         }
 

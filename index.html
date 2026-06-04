@@ -19,14 +19,14 @@
                 <h1 class="text-2xl font-bold tracking-tight text-white">Dart Canlı Ligi</h1>
                 <p class="text-xs text-slate-400">Ortak Canlı Veritabanı Aktif</p>
             </div>
-            <span id="syncStatus" class="bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-full font-semibold border border-emerald-500/30">Bağlı</span>
+            <span id="syncStatus" class="bg-amber-500/20 text-amber-400 text-xs px-3 py-1.5 rounded-full font-semibold border border-amber-500/30">Başlatılıyor...</span>
         </div>
 
         <div class="bg-slate-800 p-5 rounded-2xl shadow-lg border border-slate-700 mb-6">
             <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">Yeni Oyuncu Ekle</h2>
             <div class="flex gap-2">
-                <input id="playerName" type="text" placeholder="Oyuncu Adı" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white">
-                <input id="playerNick" type="text" placeholder="Lakap" class="w-1/3 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white">
+                <input id="playerName" type="text" placeholder="Oyuncu Adı" class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none">
+                <input id="playerNick" type="text" placeholder="Lakap" class="w-1/3 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none">
                 <button onclick="addPlayer()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl font-medium text-sm">Ekle</button>
             </div>
         </div>
@@ -61,7 +61,7 @@
     </div>
 
     <script>
-        // BURAYI KENDİ SUPABASE BİLGİLERİNLE DEĞİŞTİR
+        // BURAYI KENDİ SUPABASE BİLGİLERİNLE DEĞİŞTİR (TIRNAK İŞARETLERİNİ SİLME)
         const SUPABASE_URL = "https://unstztglzzfpxtoruwon.supabase.co/rest/v1/";
         const SUPABASE_KEY = "sb_publishable_VIPMJRRlHqlXs3vdY2rGMw_KfU3kUOp";
         
@@ -71,25 +71,38 @@
         let history = [];
 
         async function loadData() {
-            document.getElementById('syncStatus').innerText = "Yükleniyor...";
-            
-            let { data: dart_data } = await supabase.from('dart_data').select('*');
-            
-            const dbPlayers = dart_data?.find(d => d.key === 'players');
-            const dbHistory = dart_data?.find(d => d.key === 'history');
+            try {
+                document.getElementById('syncStatus').innerText = "Yükleniyor...";
+                let { data: dart_data, error } = await supabase.from('dart_data').select('*');
+                
+                if (error) throw error;
 
-            players = dbPlayers ? dbPlayers.value : [];
-            history = dbHistory ? dbHistory.value : [];
-            
-            document.getElementById('syncStatus').innerText = "Canlı";
-            renderAll();
+                const dbPlayers = dart_data?.find(d => d.key === 'players');
+                const dbHistory = dart_data?.find(d => d.key === 'history');
+
+                players = dbPlayers ? dbPlayers.value : [];
+                history = dbHistory ? dbHistory.value : [];
+                
+                document.getElementById('syncStatus').innerText = "Canlı";
+                document.getElementById('syncStatus').className = "bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1.5 rounded-full font-semibold border border-emerald-500/30";
+                renderAll();
+            } catch (err) {
+                document.getElementById('syncStatus').innerText = "Bağlantı Hatası";
+                document.getElementById('syncStatus').className = "bg-red-500/20 text-red-400 text-xs px-3 py-1.5 rounded-full font-semibold border border-red-500/30";
+                console.error("Yükleme Hatası:", err);
+            }
         }
 
         async function pushData(key, value) {
             document.getElementById('syncStatus').innerText = "Eşitleniyor...";
             const { error } = await supabase.from('dart_data').upsert({ key: key, value: value }, { onConflict: 'key' });
-            if (error) console.error(error);
+            if (error) {
+                alert("Veritabanına yazılamadı! Detay: " + error.message);
+                document.getElementById('syncStatus').innerText = "Hata";
+                return false;
+            }
             document.getElementById('syncStatus').innerText = "Canlı";
+            return true;
         }
 
         async function addPlayer() {
@@ -98,11 +111,15 @@
             if (!name) return alert('Oyuncu adı boş bırakılamaz!');
             
             players.push({ id: Date.now().toString(), name: name, nick: nick || '-', elo: 1000 });
-            document.getElementById('playerName').value = '';
-            document.getElementById('playerNick').value = '';
             
-            await pushData('players', players);
-            renderAll();
+            const success = await pushData('players', players);
+            if (success) {
+                document.getElementById('playerName').value = '';
+                document.getElementById('playerNick').value = '';
+                renderAll();
+            } else {
+                players.pop(); // Başarısız olduysa diziden geri çıkar
+            }
         }
 
         async function saveMatch() {
@@ -135,12 +152,16 @@
                 ch1: changeP1 >= 0 ? `+${changeP1}` : changeP1, ch2: changeP2 >= 0 ? `+${changeP2}` : changeP2
             });
 
-            document.getElementById('scoreP1').value = '';
-            document.getElementById('scoreP2').value = '';
+            const successPlayers = await pushData('players', players);
+            const successHistory = await pushData('history', history);
 
-            await pushData('players', players);
-            await pushData('history', history);
-            renderAll();
+            if (successPlayers && successHistory) {
+                document.getElementById('scoreP1').value = '';
+                document.getElementById('scoreP2').value = '';
+                renderAll();
+            } else {
+                loadData(); // Hata varsa veritabanındaki eski haline geri dön
+            }
         }
 
         function renderAll() {
